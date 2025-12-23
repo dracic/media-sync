@@ -25,7 +25,10 @@ def validate_config(config):
     """Validate config - make sure values are consistent"""
 
     if not (
-        config.mergin.username and config.mergin.password and config.mergin.project_name
+        hasattr(config, "mergin")
+        and config.mergin.username
+        and config.mergin.password
+        and config.mergin.project_name
     ):
         raise ConfigError("Config error: Incorrect mergin settings")
 
@@ -33,17 +36,21 @@ def validate_config(config):
         config.driver == DriverType.LOCAL
         or config.driver == DriverType.MINIO
         or config.driver == DriverType.GOOGLE_DRIVE
+        or config.driver == DriverType.AZURE
     ):
         raise ConfigError("Config error: Unsupported driver")
 
     if config.operation_mode not in ["move", "copy"]:
         raise ConfigError("Config error: Unsupported operation mode")
 
-    if config.driver == "local" and not config.local.dest:
+    if config.driver == DriverType.LOCAL and not (
+        hasattr(config, "local") and config.local.dest
+    ):
         raise ConfigError("Config error: Incorrect Local driver settings")
 
     if config.driver == DriverType.MINIO and not (
-        config.minio.endpoint
+        hasattr(config, "minio")
+        and config.minio.endpoint
         and config.minio.access_key
         and config.minio.secret_key
         and config.minio.bucket
@@ -72,11 +79,25 @@ def validate_config(config):
             raise ConfigError("Config error: Incorrect media reference settings")
 
     if config.driver == DriverType.GOOGLE_DRIVE and not (
-        hasattr(config.google_drive, "service_account_file")
+        hasattr(config, "google_drive")
+        and hasattr(config.google_drive, "service_account_file")
         and hasattr(config.google_drive, "folder")
         and hasattr(config.google_drive, "share_with")
     ):
         raise ConfigError("Config error: Incorrect GoogleDrive driver settings")
+
+    if config.driver == DriverType.AZURE and not (
+        hasattr(config, "azure")
+        and config.azure.connection_string
+        and config.azure.container
+    ):
+        raise ConfigError("Config error: Incorrect Azure driver settings")
+
+    if "skip_existing" not in config:
+        config.update({"skip_existing": False})
+
+    if config.skip_existing not in [True, False]:
+        raise ConfigError("Config error: skip_existing must be true or false")
 
 
 def update_config_path(

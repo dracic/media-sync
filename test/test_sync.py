@@ -634,3 +634,112 @@ def test_google_drive_backend(mc):
     # files in mergin project still exist (copy mode)
     assert os.path.exists(os.path.join(work_project_dir, "img1.png"))
     assert os.path.exists(os.path.join(work_project_dir, "images", "img2.jpg"))
+
+
+def test_skip_existing_files(mc):
+    """Test that skip_existing option prevents re-uploading existing files"""
+    project_name = "mediasync_test_skip_existing"
+    full_project_name = WORKSPACE + "/" + project_name
+    work_project_dir = os.path.join(TMP_DIR, project_name + "_work")
+    driver_dir = os.path.join(TMP_DIR, project_name + "_driver")
+
+    cleanup(mc, full_project_name, [work_project_dir, driver_dir])
+    prepare_mergin_project(mc, full_project_name)
+
+    config.update(
+        {
+            "ALLOWED_EXTENSIONS": ["png", "jpg"],
+            "MERGIN__USERNAME": API_USER,
+            "MERGIN__PASSWORD": USER_PWD,
+            "MERGIN__URL": SERVER_URL,
+            "MERGIN__PROJECT_NAME": full_project_name,
+            "PROJECT_WORKING_DIR": work_project_dir,
+            "DRIVER": "local",
+            "LOCAL__DEST": driver_dir,
+            "OPERATION_MODE": "copy",
+            "BASE_PATH": None,
+            "SKIP_EXISTING": False,
+            "REFERENCES": [
+                {
+                    "file": None,
+                    "table": None,
+                    "local_path_column": None,
+                    "driver_path_column": None,
+                }
+            ],
+        }
+    )
+
+    main()
+    assert os.path.exists(os.path.join(driver_dir, "img1.png"))
+    assert os.path.exists(os.path.join(driver_dir, "images", "img2.jpg"))
+
+    first_sync_mtime_img1 = os.path.getmtime(os.path.join(driver_dir, "img1.png"))
+    first_sync_mtime_img2 = os.path.getmtime(
+        os.path.join(driver_dir, "images", "img2.jpg")
+    )
+
+    import time
+
+    time.sleep(1)
+
+    shutil.rmtree(work_project_dir)
+    config.update({"SKIP_EXISTING": True})
+    main()
+
+    second_sync_mtime_img1 = os.path.getmtime(os.path.join(driver_dir, "img1.png"))
+    second_sync_mtime_img2 = os.path.getmtime(
+        os.path.join(driver_dir, "images", "img2.jpg")
+    )
+
+    assert first_sync_mtime_img1 == second_sync_mtime_img1
+    assert first_sync_mtime_img2 == second_sync_mtime_img2
+
+
+def test_skip_existing_uploads_new_files(mc):
+    """Test that skip_existing still uploads new files not in destination"""
+    project_name = "mediasync_test_skip_new"
+    full_project_name = WORKSPACE + "/" + project_name
+    work_project_dir = os.path.join(TMP_DIR, project_name + "_work")
+    driver_dir = os.path.join(TMP_DIR, project_name + "_driver")
+
+    cleanup(mc, full_project_name, [work_project_dir, driver_dir])
+    prepare_mergin_project(mc, full_project_name)
+
+    config.update(
+        {
+            "ALLOWED_EXTENSIONS": ["png", "jpg"],
+            "MERGIN__USERNAME": API_USER,
+            "MERGIN__PASSWORD": USER_PWD,
+            "MERGIN__URL": SERVER_URL,
+            "MERGIN__PROJECT_NAME": full_project_name,
+            "PROJECT_WORKING_DIR": work_project_dir,
+            "DRIVER": "local",
+            "LOCAL__DEST": driver_dir,
+            "OPERATION_MODE": "copy",
+            "BASE_PATH": None,
+            "SKIP_EXISTING": False,
+            "REFERENCES": [
+                {
+                    "file": None,
+                    "table": None,
+                    "local_path_column": None,
+                    "driver_path_column": None,
+                }
+            ],
+        }
+    )
+
+    main()
+    assert os.path.exists(os.path.join(driver_dir, "img1.png"))
+    assert os.path.exists(os.path.join(driver_dir, "images", "img2.jpg"))
+
+    os.remove(os.path.join(driver_dir, "images", "img2.jpg"))
+    assert not os.path.exists(os.path.join(driver_dir, "images", "img2.jpg"))
+
+    shutil.rmtree(work_project_dir)
+    config.update({"SKIP_EXISTING": True})
+    main()
+
+    assert os.path.exists(os.path.join(driver_dir, "img1.png"))
+    assert os.path.exists(os.path.join(driver_dir, "images", "img2.jpg"))

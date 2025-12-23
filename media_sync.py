@@ -195,11 +195,56 @@ def media_sync_push(mc, driver, files):
     _check_has_working_dir()
     migrated_files = {}
 
+    # Threshold for switching between per-file existence checks and full listing.
+    # Below this threshold, individual HEAD/stat requests are more efficient than
+    # listing potentially millions of files from a large bucket.
+    SKIP_EXISTING_THRESHOLD = 100
+
+    # Check for existing files if skip_existing is enabled
+    existing_files = set()
+    use_inline_check = False
+    if config.get("skip_existing", False):
+        if len(files) < SKIP_EXISTING_THRESHOLD:
+            # For small batches, check existence inline during upload loop
+            # to avoid loading the entire remote file list
+            print(f"Skip-existing enabled: will check {len(files)} files individually")
+            use_inline_check = True
+        else:
+            # For larger batches, pre-fetch the full listing (more efficient overall)
+            print("Checking existing files in destination...")
+            try:
+                existing_files = set(driver.list_files())
+                print(f"Found {len(existing_files)} existing files in destination")
+            except DriverError as e:
+                print(f"Warning: Could not list existing files: {str(e)}")
+                print("Continuing without deduplication...")
+
     # TODO make async and parallel for better performance
     for file in files:
         src = os.path.join(config.project_working_dir, file["path"])
         if not os.path.exists(src):
             print("Missing local file: " + str(file["path"]))
+            continue
+
+        # Check if file already exists in destination
+        file_already_exists = False
+        if use_inline_check:
+            # Per-file check for small batches (avoids full listing)
+            try:
+                file_already_exists = driver.file_exists(file["path"])
+            except DriverError as e:
+                print(f"Warning: Could not check existence of {file['path']}: {str(e)}")
+        else:
+            file_already_exists = file["path"] in existing_files
+
+        if file_already_exists:
+            print(f"Skipping {file['path']} - already exists in destination")
+            # Still add to migrated_files so references get updated
+            try:
+                dest = driver.get_file_url(file["path"])
+                migrated_files[file["path"]] = dest
+            except DriverError as e:
+                print(f"Warning: Could not get URL for existing file: {str(e)}")
             continue
 
         try:

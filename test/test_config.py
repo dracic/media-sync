@@ -111,3 +111,45 @@ def test_config():
     with pytest.raises(ConfigError, match="Config error: Incorrect reference settings"):
         config.update({"REFERENCES": "text"})
         validate_config(config)
+
+
+def test_azure_config_validation():
+    """Test Azure driver configuration validation"""
+    _reset_config()
+    # Valid Azure config
+    config.update(
+        {
+            "DRIVER": "azure",
+            "AZURE__CONNECTION_STRING": "DefaultEndpointsProtocol=https;AccountName=test",
+            "AZURE__CONTAINER": "test-container",
+        }
+    )
+    validate_config(config)
+
+    # Missing connection_string
+    _reset_config()
+    with pytest.raises(
+        ConfigError, match="Config error: Incorrect Azure driver settings"
+    ):
+        config.update(
+            {
+                "DRIVER": "azure",
+                "AZURE__CONNECTION_STRING": None,
+                "AZURE__CONTAINER": "test-container",
+            }
+        )
+        validate_config(config)
+
+    # Missing container
+    _reset_config()
+    with pytest.raises(
+        ConfigError, match="Config error: Incorrect Azure driver settings"
+    ):
+        config.update(
+            {
+                "DRIVER": "azure",
+                "AZURE__CONNECTION_STRING": "DefaultEndpointsProtocol=https;AccountName=test",
+                "AZURE__CONTAINER": None,
+            }
+        )
+        validate_config(config)

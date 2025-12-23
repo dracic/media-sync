@@ -6,6 +6,12 @@ operation_mode: copy
 base_path:
 driver: local
 
+# Skip uploading files that already exist in the destination storage
+# When true, files are listed from destination and skipped if they already exist
+# Useful for resuming failed syncs or avoiding re-uploading unchanged files
+# Default: false (upload all files regardless of existence)
+skip_existing: false
+
 mergin:
   url: https://app.merginmaps.com
   username: media-sync
@@ -25,9 +31,15 @@ minio:
   bucket_subpath:
 
 google_drive:
-  service_account_file: 
+  service_account_file:
   folder:
   share_with:
+
+# Azure Blob Storage settings
+# To use Azure, set driver: azure and provide connection_string and container
+azure:
+  connection_string:
+  container:
 
 references:
   - file: survey.gpkg
